@@ -1,0 +1,18 @@
+{
+  "title": "动物世界",
+  "description": "",
+  "keywords": "",
+  "template": "/h5/default.html",
+  "filename": "html/animals-world.html",
+  "icon": "/favicon.ico",
+  "prejs": [
+    "https://easyread.nosdn.127.net/fle/a0df1d4009c7a2ec5fee/@axe/rem-resize-0.2.6/lib/index.js"
+  ],
+  "css": [
+    "https://easyread.nosdn.127.net/fle/a0df1d4009c7a2ec5fee/@axe/rem-resize-0.2.6/lib/index.css"
+  ],
+  "js": [
+    "/socket.io/socket.io.js"
+  ],
+  "compiled": true
+}

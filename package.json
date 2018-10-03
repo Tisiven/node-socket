@@ -1,0 +1,33 @@
+{
+  "name": "node-socket",
+  "version": "0.0.0",
+  "description": "A project created by fle-cli.",
+  "scripts": {
+    "start": "node server/lib/index.js",
+    "dev": "node tools/development.js",
+    "build": "node tools/development.js"
+  },
+  "keywords": [
+    "fle",
+    "socket",
+    "vue"
+  ],
+  "author": "ansenhuang <ancheng1992@126.com>",
+  "license": "MIT",
+  "dependencies": {
+    "@axe/modal": "^0.1.1",
+    "@axe/request": "^0.5.3",
+    "@axe/tips": "^0.1.1",
+    "internal-ip": "^3.0.1",
+    "koa": "^2.5.3",
+    "koa-bodyparser": "^4.2.1",
+    "koa-logger": "^3.2.0",
+    "koa-router": "^7.4.0",
+    "koa-static": "^5.0.0",
+    "socket.io": "^2.1.1",
+    "vue": "^2.5.16"
+  },
+  "engines": {
+    "node": ">=8.11.4"
+  }
+}

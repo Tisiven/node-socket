@@ -1,0 +1,26 @@
+{
+  "business": "animals-world",
+  "eslint": true,
+  "publicPath": "/",
+  "splitVendor": true,
+  "splitCommon": true,
+  "vendors": {},
+  "remUnit": 50,
+  "host": "dev.com",
+  "port": 5000,
+  "historyApiFallback": true,
+  "proxy": {
+    "/api/**/*": "http://localhost:3000",
+    "/socket.io/socket.io.js": "http://localhost:3000"
+  },
+  "copyPath": "dist",
+  "copyExtnames": ["html"],
+  "browsers": [
+    "last 4 versions",
+    "ie >= 9",
+    "iOS >= 7",
+    "Android >= 4"
+  ],
+  "externals": {},
+  "boilerplate": "vue"
+}
