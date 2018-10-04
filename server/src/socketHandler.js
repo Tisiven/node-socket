@@ -1,6 +1,6 @@
 import SocketIO from 'socket.io'
 
-function getCompareResult (fromCard, toCard) {
+function getChallengeResult (fromCard, toCard) {
   if (fromCard === 'stone') {
     if (toCard === 'stone') {
       return 0
@@ -49,62 +49,75 @@ function getCompareResult (fromCard, toCard) {
 export default function (server) {
   const io = SocketIO(server)
   const users = {}
-  const compares = []
+  const challengeData = {}
 
   io.on('connection', socket => {
     const id = socket.id
 
-    users[socket.id] = {
-      id,
-      star: 3,
-      stone: 4,
-      scissors: 4,
-      paper: 4
-    }
+    socket.emit('connected')
 
-    socket.emit('open', id, users)
+    socket.on('open', name => {
+      // 初始化数据
+      users[id] = {
+        id,
+        name,
+        star: 3,
+        stone: 4,
+        scissors: 4,
+        paper: 4
+      }
 
+      // 通知所有人
+      io.emit('update_users', users)
+    })
+
+    socket.on('challenge', data => {
+      data.fromId = id
+      challengeData[id] = data
+      io.to(data.toId).emit('accept_challenge', users[id])
+    })
+
+    socket.on('cancel_challenge', () => {
+      io.to(challengeData[id].toId).emit('cancel_challenge')
+      delete challengeData[id]
+    })
+
+    socket.on('respond_challenge', data => {
+      if (data.accept) {
+        let cd = challengeData[data.fromId]
+        cd.toCard = data.toCard
+
+        users[cd.fromId][cd.fromCard]--
+        users[cd.toId][cd.toCard]--
+
+        let result = getChallengeResult(cd.fromCard, cd.toCard)
+
+        if (result === 1) {
+          users[cd.fromId].star++
+          users[cd.toId].star--
+        } else if (result === -1) {
+          users[cd.fromId].star--
+          users[cd.toId].star++
+        }
+
+        io.to(cd.fromId).emit('result_challenge', result, users)
+        io.to(cd.toId).emit('result_challenge', -result, users)
+      } else {
+        io.to(data.fromId).emit('cancel_challenge')
+      }
+
+      delete challengeData[data.fromId]
+    })
+
+    socket.on('success_challenge', () => {
+      socket.broadcast.emit('success_challenge', users[id])
+    })
+
+    // 断开连接
     socket.on('disconnect', () => {
       delete users[id]
       // 广播用户已退出
-      socket.broadcast.emit('close', users)
-    })
-
-    socket.on('message', obj => {
-      if (obj.type === 'addUser') {
-        users[id].name = obj.name
-      } else if (obj.type === 'compare') {
-        compares.push(obj)
-        socket.broadcast.emit('isAccept', {
-          from: users[obj.fromId],
-          to: users[obj.toId]
-        }, compares.length - 1)
-      } else if (obj.type === 'accept') {
-        if (obj.confirm) {
-          let item = compares[obj.index]
-
-          item.toCard = obj.card
-
-          let result = getCompareResult(item.fromCard, obj.card)
-
-          users[item.fromId][item.fromCard]--
-          users[item.toId][item.toCard]--
-
-          item.result = result
-
-          if (result === 1) {
-            users[item.fromId].star++
-            users[item.toId].star--
-          } else if (result === -1) {
-            users[item.fromId].star--
-            users[item.toId].star++
-          }
-
-          socket.broadcast.emit('result', item, users)
-        } else {
-          socket.broadcast.emit('refuse', users[id])
-        }
-      }
+      socket.broadcast.emit('update_users', users)
     })
   })
 }

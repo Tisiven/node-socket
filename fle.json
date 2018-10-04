@@ -4,7 +4,9 @@
   "publicPath": "/",
   "splitVendor": true,
   "splitCommon": true,
-  "vendors": {},
+  "vendors": {
+    "vue": "[\\/]vue"
+  },
   "remUnit": 50,
   "host": "dev.com",
   "port": 5000,

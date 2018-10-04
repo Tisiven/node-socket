@@ -2,7 +2,7 @@
 .cache/
 .vscode/
 node_modules/
-/lib
+lib/
 /dist
 /public
 *.log*

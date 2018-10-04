@@ -12,10 +12,19 @@
           <div :class="[$style.cardLayer, selectedCard === 'paper' && $style.cardLayerActive]" @click="handleSelectCard('paper')">{{userInfo.paper}}</div>
         </div>
       </div>
-      <ul :class="$style.user">
-        <li v-for="(user, key) in users" :key="key" :class="selectedUserId === user.id && $style.userActive" @click="handleSelectUser(user.id)">{{user.name + (id === user.id ? '（我）' : '')}} <span>{{user.id}}</span></li>
+      <ul :class="$style.user" v-if="users[id]">
+        <li :class="$style.userSelf" @click="handleSelectUser(id)">
+          <p :class="$style.userName">{{users[id].name}}</p>
+          <p>星星：{{users[id].star}}</p>
+          <p>卡牌：{{users[id].stone + users[id].scissors + users[id].paper}}</p>
+        </li>
+        <li v-for="(user, key) in users" v-if="key !== id" :key="key" :class="selectedUserId === key && $style.userActive" @click="handleSelectUser(key)">
+          <p :class="$style.userName">{{user.name}}</p>
+          <p>星星：{{user.star}}</p>
+          <p>卡牌：{{user.stone + user.scissors + user.paper}}</p>
+        </li>
       </ul>
-      <div :class="$style.btn" @click="handleCompare">{{!isAccepted ? '开始比拼' : '回应挑战'}}</div>
+      <div :class="$style.btn" @click="handleChallenge">{{!acceptChallenge ? '开始比拼' : '回应挑战'}}</div>
       <div :class="$style.info">
         <p>我的星星：<span>{{userInfo.star}}</span>颗</p>
         <p>石头总数：<span>{{totalInfo.stone}}</span>张</p>
@@ -23,12 +32,14 @@
         <p>布总数：<span>{{totalInfo.paper}}</span>张</p>
       </div>
     </div>
-    <Loading v-else text="连接中..." />
+    <Loading v-else text="游戏连接中..." />
   </div>
 </template>
 
 <script>
 import request from '@/common/request'
+import tips from '@axe/tips'
+import modal from '@axe/modal'
 
 import Loading from './components/Loading.vue'
 
@@ -45,8 +56,7 @@ export default {
       selectedUserId: '',
       selectedCard: '',
       users: {},
-      compareIndex: -1,
-      isAccepted: false
+      acceptChallenge: false
     }
   },
   computed: {
@@ -83,127 +93,174 @@ export default {
       this.selectedCard = type
     },
     handleSelectUser (id) {
+      if (this.id === id) {
+        tips.show({
+          content: '不可以挑战自己哦'
+        })
+        return
+      }
+
       this.selectedUserId = id
     },
-    handleCompare () {
+    handleChallenge () {
+      if (this.gameover) {
+        tips.show({
+          content: '游戏已结束，请重新开始'
+        })
+        return
+      }
+
       if (!this.selectedCard) {
-        window.alert('请挑选卡牌')
+        tips.show({
+          content: '请挑选卡牌'
+        })
         return
       }
 
-      if (this.isAccepted) {
-        this.socket.send({
-          type: 'accept',
-          index: this.compareIndex,
-          confirm: true,
-          card: this.selectedCard
+      if (this.users[this.id][this.selectedCard] <= 0) {
+        tips.show({
+          content: '这类卡牌已耗尽'
+        })
+        return
+      }
+
+      let user = this.users[this.selectedUserId]
+
+      if (!user) {
+        tips.show({
+          content: '请挑选对手'
+        })
+        return
+      }
+
+      if (user.star <= 0 || (user.stone + user.scissors + user.paper) <= 0) {
+        tips.show({
+          content: '该用户已不具备对战能力了'
+        })
+        return
+      }
+
+      if (!this.acceptChallenge) {
+        this.socket.emit('challenge', {
+          fromCard: this.selectedCard,
+          toId: this.selectedUserId
         })
 
-        this.compareIndex = -1
-        this.isAccepted = false
-        return
-      }
-
-      if (!this.selectedUserId) {
-        window.alert('请挑选对手')
-        return
-      }
-
-      this.socket.send({
-        type: 'compare',
-        fromId: this.id,
-        toId: this.selectedUserId,
-        fromCard: this.selectedCard
-      })
-    },
-    onOpen () {
-      this.socket.on('open', (id, users) => {
-        // let name = window.prompt('请输入姓名')
-        let name
-
-        if (!name || !name.trim()) {
-          name = id
-        }
-
-        this.id = id
-
-        users[id].name = name
-        this.users = users
-
-        // 已连接
-        this.isConnected = true
-
-        this.socket.send({
-          type: 'addUser',
-          name
+        modal.show({
+          title: '发起挑战',
+          content: '等待对方接受中...',
+          confirmText: '取消挑战'
+        }, t => {
+          if (t === 'confirm') {
+            this.socket.emit('cancel_challenge')
+          }
         })
-      })
-    },
-    onClose () {
-      this.socket.on('close', users => {
-        this.users = users
-      })
-    },
-    onAccept () {
-      this.socket.on('isAccept', ({ from, to }, index) => {
-        if (to.id !== this.id) return
+      } else {
+        this.socket.emit('respond_challenge', {
+          accept: true,
+          fromId: this.challengeFromUser.id,
+          toCard: this.selectedCard
+        })
 
-        let isConfirm = window.confirm('是否接受来自【' + from.name + '】的挑战？')
-
-        if (isConfirm) {
-          this.compareIndex = index
-          this.isAccepted = true
-        } else {
-          this.socket.send({
-            type: 'accept',
-            index,
-            confirm: false
-          })
-        }
-      })
-    },
-    onRefuse () {
-      this.socket.on('refuse', user => {
-        if (user.id !== this.id) return
-
-        window.alert('用户【' + user.name + '】拒绝了您的挑战')
-      })
-    },
-    onResult () {
-      this.socket.on('result', (data, users) => {
-        this.users = users
-
-        if (data.fromId === this.id) {
-          if (data.result === 1) {
-            window.alert('恭喜你赢了！')
-          } else if (data.result === 0) {
-            window.alert('平局，加油哦')
-          } else {
-            window.alert('很遗憾你输了')
-          }
-        } else if (data.toId === this.id) {
-          if (data.result === -1) {
-            window.alert('恭喜你赢了！')
-          } else if (data.result === 0) {
-            window.alert('平局，加油哦')
-          } else {
-            window.alert('很遗憾你输了')
-          }
-        }
-      })
+        // 重置记录
+        this.acceptChallenge = false
+      }
     }
   },
-  created () {
+  mounted () {
     request({
       url: '/api/info'
     }).then(data => {
       this.socket = window.io.connect('http://' + data.ip + ':' + data.port)
 
-      this.onOpen()
-      this.onClose()
-      this.onAccept()
-      this.onRefuse()
-      this.onResult()
+      this.socket.on('connected', () => {
+        let name = window.prompt('请输入您优雅高贵的称呼')
+
+        if (!name || !name.trim()) {
+          name = this.socket.id
+        }
+
+        this.socket.emit('open', name)
+
+        // 已连接
+        this.id = this.socket.id
+        this.isConnected = true
+      })
+
+      this.socket.on('update_users', users => {
+        this.users = users
+      })
+
+      this.socket.on('accept_challenge', fromUser => {
+        modal.show({
+          title: '接受挑战',
+          content: '是否接受来自【' + fromUser.name + '】的挑战？',
+          confirmText: '接受',
+          cancelText: '拒绝'
+        }, t => {
+          if (t === 'confirm') {
+            this.selectedUserId = fromUser.id
+            this.acceptChallenge = true
+            this.challengeFromUser = fromUser
+          } else {
+            this.socket.emit('respond_challenge', {
+              accept: false,
+              fromId: fromUser.id
+            })
+          }
+        })
+      })
+
+      this.socket.on('cancel_challenge', () => {
+        this.acceptChallenge = false
+
+        modal.hide()
+        tips.show({
+          content: '对方取消了挑战'
+        })
+      })
+
+      this.socket.on('result_challenge', (result, users) => {
+        this.users = users
+
+        modal.hide()
+        tips.show({
+          content: result === 0 ? '平局' : (result === 1 ? '你赢了' : '你输了')
+        }, () => {
+          let user = users[this.id]
+          let cardCount = user.stone + user.scissors + user.paper
+
+          if (user.star >= 3 && cardCount <= 0) {
+            this.socket.emit('success_challenge')
+
+            modal.show({
+              title: '游戏胜利',
+              content: '恭喜你获得了胜利！',
+              confirmText: '再来一局'
+            }, t => {
+              if (t === 'confirm') {
+                window.location.reload()
+              }
+            })
+          } else if (user.star <= 0 || cardCount <= 0) {
+            this.gameover = true
+
+            modal.show({
+              title: '游戏结束',
+              content: user.star <= 0 ? '你已经没有星星了' : '你已经没有卡牌了',
+              confirmText: '重新开始'
+            }, t => {
+              if (t === 'confirm') {
+                window.location.reload()
+              }
+            })
+          }
+        })
+      })
+
+      this.socket.on('success_challenge', user => {
+        window.alert(`恭喜【${user.name}】挑战成功，战绩（${user.star}）颗星`)
+      })
     })
   }
 }
@@ -271,11 +328,16 @@ export default {
   margin: 20rpx 0;
   border: 1px solid #333;
   border-radius: 10rpx;
+  overflow: hidden;
 
   li {
     padding: 20rpx;
     font-size: 28rpx;
     line-height: 42rpx;
+    border-bottom: 1px solid #ccc;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
 
     span {
       float: right;
@@ -287,6 +349,18 @@ export default {
 
   &-active {
     background-color: rgba(255, 85, 0, .7);
+  }
+
+  &-self {
+    background-color: rgba(0, 0, 0, .4);
+  }
+
+  &-name {
+    width: 320rpx;
+    flex-shrink: 0;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
   }
 }
 
