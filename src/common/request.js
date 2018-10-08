@@ -9,7 +9,6 @@ request.defaults.beforeRequest = req => {
     cache[req.url] = true
   } else {
     req._abort = true
-    return
   }
 }
 

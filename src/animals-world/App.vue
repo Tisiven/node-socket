@@ -57,7 +57,7 @@ export default {
       selectedCard: '',
       users: {},
       acceptChallenge: false
-    }
+    };
   },
   computed: {
     userInfo () {
